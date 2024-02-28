@@ -52,6 +52,20 @@ static NSString * const GeneratedClassPrefix = @"";
 static NSDictionary *GoogleTestFilterMap;
 
 /**
+ * This will contain all the tests that should be run for current class.
+ * Ex - "Class.Test1:Class.Test2:Class.Test3". (format which Gtest understands)
+ */
+static NSString *finalFilter;
+static int filterCount;
+
+/**
+ * Run all the selected tests for a given Gtest Class (Fixture / Suite).
+ * Only selected tests (in run window) will run.
+ * Name of all the tests will be part of @finalFilter string.
+ */
+static void RunAllTestsForCurrentClass(id self);
+
+/**
  * A Google Test listener that reports failures to XCTest.
  */
 class XCTestListener : public testing::EmptyTestEventListener {
@@ -134,29 +148,56 @@ private:
     return invocations;
 }
 
+/**
+ *Run the tests in teardown method.
+ *By now all the name of all the tests for current class will be part of @finalFilter
+ */
++ (void)tearDown{
+    RunAllTestsForCurrentClass(self);
+    // Reset global filter for next run.
+    finalFilter = @"";
+    filterCount = 0;
+}
+
 @end
 
 /**
- * Runs a single test.
+ * Runs all filtered tests for current class
  */
-static void RunTest(id self, SEL _cmd) {
+static void RunAllTestsForCurrentClass(id self){
     XCTestListener *listener = new XCTestListener(self);
     UnitTest *googleTest = UnitTest::GetInstance();
     googleTest->listeners().Append(listener);
-
-    NSString *testKey = [NSString stringWithFormat:@"%@.%@", [self class], NSStringFromSelector(_cmd)];
-    NSString *testFilter = GoogleTestFilterMap[testKey];
-    XCTAssertNotNil(testFilter, @"No test filter found for test %@", testKey);
-
-    testing::GTEST_FLAG(filter) = [testFilter UTF8String];
+    
+    testing::GTEST_FLAG(filter) = [finalFilter UTF8String];
 
     (void)RUN_ALL_TESTS();
 
     delete googleTest->listeners().Release(listener);
 
     int totalTestsRun = googleTest->successful_test_count() + googleTest->failed_test_count();
-    XCTAssertEqual(totalTestsRun, 1, @"Expected to run a single test for filter \"%@\"", testFilter);
+    XCTAssertEqual(totalTestsRun, filterCount, @"Expected to run %d test(s) for filters \"%@\"", filterCount, finalFilter);
+    
 }
+
+/**
+ * Runs a single test.
+ */
+static void RunTest(id self, SEL _cmd) {
+    
+    NSString *testKey = [NSString stringWithFormat:@"%@.%@", [self class], NSStringFromSelector(_cmd)];
+    NSString *testFilter = GoogleTestFilterMap[testKey];
+    XCTAssertNotNil(testFilter, @"No test filter found for test %@", testKey);
+    
+    // Save all the tests for current class, in format supported by Gtest
+    if(finalFilter.length){
+        finalFilter = [NSString stringWithFormat:@"%s:%s", finalFilter.UTF8String, testFilter.UTF8String];
+    }else{
+        finalFilter = testFilter;
+    }
+    filterCount++;
+}
+
 
 @implementation GoogleTestLoader
 
