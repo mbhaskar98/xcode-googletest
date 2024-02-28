@@ -150,7 +150,7 @@ private:
 
 /**
  *Run the tests in teardown method.
- *By now all the name of all the tests for current class will be part of @finalFilter
+ *By now the name of all the tests for current class will be part of @finalFilter
  */
 + (void)tearDown{
     RunAllTestsForCurrentClass(self);
